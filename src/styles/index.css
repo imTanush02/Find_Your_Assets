@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root, #app {
+    @apply w-full h-full overflow-hidden bg-bg-primary text-text-primary font-sans antialiased;
+  }
+
+  /* ---------- Scrollbar ---------- */
+  ::-webkit-scrollbar {
+    @apply w-[6px] h-[6px];
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-bg-tertiary rounded-[3px];
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-bg-hover;
+  }
+}
