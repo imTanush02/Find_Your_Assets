@@ -32,7 +32,7 @@ Since this extension is currently unsigned, you will need to enable Developer Mo
 
 ### Step 2: Install the Extension
 1. Download or clone this repository.
-2. Copy the entire `MyExtension` folder to the Adobe CEP extensions folder:
+2. Copy the entire `Find_Your_Assets` folder to the Adobe CEP extensions folder:
    - **Windows:** `C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\`
    - **macOS:** `/Library/Application Support/Adobe/CEP/extensions/`
 3. Open After Effects.
