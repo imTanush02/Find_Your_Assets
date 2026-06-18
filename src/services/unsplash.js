@@ -4,7 +4,7 @@
 
 import { httpGetJSON } from './http';
 
-const ACCESS_KEY = '4-LwakiGNcRca-LkpiBfcyWfmLZT1ZS2DT6FAws-r7o';
+const ACCESS_KEY = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
 const PER_PAGE = 20;
 
 /**
@@ -12,6 +12,10 @@ const PER_PAGE = 20;
  * Returns normalized result: { total, totalPages, results[] }
  */
 export async function searchPhotos(query, page = 1) {
+  if (!ACCESS_KEY) {
+    throw new Error('Unsplash API key not set! Add VITE_UNSPLASH_ACCESS_KEY to .env');
+  }
+
   const path = `/search/photos?query=${encodeURIComponent(query)}&page=${page}&per_page=${PER_PAGE}&client_id=${ACCESS_KEY}`;
   const data = await httpGetJSON('api.unsplash.com', path);
 
@@ -26,6 +30,7 @@ export async function searchPhotos(query, page = 1) {
       userName: img.user.name,
       userUrl: img.user.links.html + '?utm_source=ae_extension&utm_medium=referral',
       source: 'unsplash',
+      type: 'image',
     })),
   };
 }

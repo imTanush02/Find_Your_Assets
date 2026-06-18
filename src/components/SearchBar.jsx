@@ -1,6 +1,12 @@
 import React, { useState, useRef } from 'react';
 
-export default function SearchBar({ onSearch, mode }) {
+const PLACEHOLDER_MAP = {
+  pexels: { images: 'Search Pexels photos…', videos: 'Search Pexels videos…' },
+  unsplash: { images: 'Search Unsplash photos…' },
+  pixabay: { images: 'Search Pixabay images…', videos: 'Search Pixabay videos…' },
+};
+
+export default function SearchBar({ onSearch, source, contentType }) {
   const [value, setValue] = useState('');
   const inputRef = useRef(null);
 
@@ -13,6 +19,8 @@ export default function SearchBar({ onSearch, mode }) {
     if (e.key === 'Enter') handleSubmit();
   };
 
+  const placeholder = PLACEHOLDER_MAP[source]?.[contentType] || 'Search assets…';
+
   return (
     <div className="flex items-center gap-2 bg-bg-secondary border border-border-subtle rounded-lg px-3 py-1 transition-all duration-150 focus-within:border-accent focus-within:shadow-[0_0_0_2px_rgba(74,158,255,0.25)]">
       <svg className="text-text-muted shrink-0" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -23,7 +31,7 @@ export default function SearchBar({ onSearch, mode }) {
         ref={inputRef}
         type="text"
         id="searchInput"
-        placeholder={mode === 'pngs' ? 'Search transparent PNGs…' : 'Search photos…'}
+        placeholder={placeholder}
         autoComplete="off"
         className="flex-1 py-1.5 px-1 border-none bg-transparent text-text-primary text-[13px] outline-none min-w-0 placeholder:text-text-muted"
         value={value}
@@ -37,3 +45,4 @@ export default function SearchBar({ onSearch, mode }) {
     </div>
   );
 }
+

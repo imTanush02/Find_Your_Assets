@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { CEPProvider } from './context/CEPContext';
 import { SettingsProvider } from './context/SettingsContext';
-import { useSearch } from './hooks/useSearch';
+import { useSearch, SOURCE_CONTENT_TYPES } from './hooks/useSearch';
 import { useToast } from './hooks/useToast';
 import Header from './components/Header';
 import SearchBar from './components/SearchBar';
-import ModeToggle from './components/ModeToggle';
+import SourceSelector from './components/SourceSelector';
 import ImageGrid from './components/ImageGrid';
 import Toast from './components/Toast';
 import StatusBar from './components/StatusBar';
@@ -17,7 +17,8 @@ function AppContent() {
   const {
     results,
     query,
-    mode,
+    source,
+    contentType,
     page,
     totalPages,
     total,
@@ -29,21 +30,40 @@ function AppContent() {
 
   const { toasts, addToast } = useToast();
   const [previewImage, setPreviewImage] = useState(null);
+  const [activeSource, setActiveSource] = useState('pexels');
+  const [activeContentType, setActiveContentType] = useState('images');
 
   const handleSearch = useCallback((searchQuery) => {
-    search(searchQuery, mode);
-  }, [search, mode]);
+    search(searchQuery, activeSource, activeContentType);
+  }, [search, activeSource, activeContentType]);
 
-  const handleModeChange = useCallback((newMode) => {
-    if (query) {
-      search(query, newMode);
+  const handleSourceChange = useCallback((newSource) => {
+    setActiveSource(newSource);
+    // If the new source doesn't support current content type, reset to 'images'
+    const supportedTypes = SOURCE_CONTENT_TYPES[newSource] || ['images'];
+    if (!supportedTypes.includes(activeContentType)) {
+      setActiveContentType('images');
     }
-  }, [search, query]);
+    // Re-search if there's an active query
+    if (query) {
+      const validType = supportedTypes.includes(activeContentType) ? activeContentType : 'images';
+      search(query, newSource, validType);
+    }
+  }, [search, query, activeContentType]);
+
+  const handleContentTypeChange = useCallback((newType) => {
+    setActiveContentType(newType);
+    if (query) {
+      search(query, activeSource, newType);
+    }
+  }, [search, query, activeSource]);
+
+  const contentLabel = activeContentType === 'videos' ? 'videos' : 'images';
 
   const statusText = (() => {
     if (loading && results.length === 0) return `Searching for "${query}"…`;
     if (error) return `⚠ ${error}`;
-    if (total > 0) return `${total.toLocaleString()} images — page ${page}/${totalPages}`;
+    if (total > 0) return `${total.toLocaleString()} ${contentLabel} — page ${page}/${totalPages}`;
     if (query && !loading && results.length === 0) return `No results for "${query}"`;
     return '';
   })();
@@ -53,8 +73,13 @@ function AppContent() {
       <Header />
 
       <div className="px-3.5 pt-2.5 pb-1.5 shrink-0 bg-bg-primary">
-        <SearchBar onSearch={handleSearch} mode={mode} />
-        <ModeToggle mode={mode} onModeChange={handleModeChange} />
+        <SearchBar onSearch={handleSearch} source={activeSource} contentType={activeContentType} />
+        <SourceSelector
+          source={activeSource}
+          contentType={activeContentType}
+          onSourceChange={handleSourceChange}
+          onContentTypeChange={handleContentTypeChange}
+        />
       </div>
 
       {statusText && <p className="text-center text-text-muted text-[11px] min-h-[1.2em] px-3.5 py-1 shrink-0">{statusText}</p>}
@@ -69,7 +94,6 @@ function AppContent() {
 
         <ImageGrid
           results={results}
-          mode={mode}
           loading={loading}
           page={page}
           totalPages={totalPages}
@@ -104,4 +128,3 @@ export default function App() {
     </CEPProvider>
   );
 }
-

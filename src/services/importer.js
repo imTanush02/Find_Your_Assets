@@ -13,6 +13,10 @@ const EXT_MAP = {
   'image/svg+xml': '.svg',
   'image/tiff': '.tiff',
   'image/bmp': '.bmp',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+  'video/x-msvideo': '.avi',
 };
 
 /**
@@ -127,6 +131,43 @@ export async function loadImageAsDataUri(url) {
   const { buffer, contentType } = await httpGetBinary(url);
   const base64 = buffer.toString('base64');
   return `data:${contentType};base64,${base64}`;
+}
+
+/**
+ * Download a video and import it into AE project.
+ * Returns the imported file path.
+ */
+export async function downloadAndImportVideo(videoUrl, description, videoId) {
+  const env = detectEnvironment();
+  if (!env.isCEP) throw new Error('Import requires After Effects');
+
+  const saveDir = await getSaveDirectory();
+  const safeName = (description || videoId || 'video')
+    .replace(/[^a-z0-9]/gi, '_')
+    .substring(0, 60);
+  const baseName = `${safeName}_${videoId}`;
+
+  // Download the video file
+  const { buffer, contentType } = await httpGetBinary(videoUrl);
+
+  // Determine correct extension from content-type
+  const ext = EXT_MAP[contentType.split(';')[0].trim()] || '.mp4';
+  const finalPath = env.path.join(saveDir, baseName + ext);
+
+  // Skip if already downloaded
+  if (!env.fs.existsSync(finalPath)) {
+    env.fs.writeFileSync(finalPath, buffer);
+  }
+
+  // Import into AE (same function — AE handles video footage natively)
+  const escapedPath = finalPath.replace(/\\/g, '/');
+  const result = await evalScript(`importFileToProject("${escapedPath}")`);
+
+  if (result && result.indexOf('ERROR') === 0) {
+    throw new Error(result);
+  }
+
+  return { path: finalPath, fileName: baseName + ext };
 }
 
 /**

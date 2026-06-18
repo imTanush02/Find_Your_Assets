@@ -8,7 +8,7 @@ import { detectEnvironment } from './cep';
  * Performs a GET request and returns parsed JSON.
  * Uses Node.js https in CEP, fetch in browser.
  */
-export function httpGetJSON(hostname, path) {
+export function httpGetJSON(hostname, path, extraHeaders = {}) {
   const env = detectEnvironment();
 
   if (env.isCEP && env.https) {
@@ -17,7 +17,7 @@ export function httpGetJSON(hostname, path) {
         hostname,
         path,
         method: 'GET',
-        headers: { 'User-Agent': 'FindYourAssets/1.0' },
+        headers: { 'User-Agent': 'FindYourAssets/1.0', ...extraHeaders },
       };
 
       const req = env.https.request(options, (res) => {
@@ -46,7 +46,9 @@ export function httpGetJSON(hostname, path) {
   }
 
   // Browser fallback
-  return fetch(`https://${hostname}${path}`)
+  return fetch(`https://${hostname}${path}`, {
+    headers: { ...extraHeaders },
+  })
     .then((res) => {
       if (!res.ok) throw new Error(`API error ${res.status}`);
       return res.json();

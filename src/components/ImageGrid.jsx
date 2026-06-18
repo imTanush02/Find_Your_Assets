@@ -1,7 +1,7 @@
 import React from 'react';
 import ImageCard from './ImageCard';
 
-export default function ImageGrid({ results, mode, loading, page, totalPages, onLoadMore, onToast, onPreview }) {
+export default function ImageGrid({ results, loading, page, totalPages, onLoadMore, onToast, onPreview }) {
   if (loading && results.length === 0) {
     return (
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2.5">
@@ -23,7 +23,6 @@ export default function ImageGrid({ results, mode, loading, page, totalPages, on
           <ImageCard
             key={`${img.id}-${i}`}
             image={img}
-            mode={mode}
             onToast={onToast}
             onPreview={onPreview}
             index={i}
@@ -42,3 +41,4 @@ export default function ImageGrid({ results, mode, loading, page, totalPages, on
     </>
   );
 }
+

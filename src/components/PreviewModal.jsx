@@ -1,24 +1,31 @@
 import React, { useState, useCallback } from 'react';
 import { useCEP } from '../context/CEPContext';
 import { useSettings } from '../context/SettingsContext';
-import { downloadAndImport, browserDownload, removeBgAndImport } from '../services/importer';
+import { downloadAndImport, browserDownload, removeBgAndImport, downloadAndImportVideo } from '../services/importer';
 
 export default function PreviewModal({ image, onClose, onToast }) {
   const { isCEP, cs } = useCEP();
   const { removeBgApiKey, setIsSettingsOpen } = useSettings();
   const [status, setStatus] = useState('idle'); // idle | importing | importing-bg | success | error
 
+  const isVideo = image?.type === 'video';
+
   const handleImport = useCallback(async () => {
     if (status !== 'idle' && status !== 'error') return;
     setStatus('importing');
     try {
       if (isCEP && cs) {
-        const result = await downloadAndImport(image.fullUrl, image.description, image.id);
+        let result;
+        if (isVideo) {
+          result = await downloadAndImportVideo(image.videoUrl || image.fullUrl, image.description, image.id);
+        } else {
+          result = await downloadAndImport(image.fullUrl, image.description, image.id);
+        }
         setStatus('success');
         onToast('success', `Imported: ${result.fileName}`);
         setTimeout(() => { setStatus('idle'); onClose(); }, 1500);
       } else {
-        await browserDownload(image.fullUrl, image.description, image.id);
+        await browserDownload(image.videoUrl || image.fullUrl, image.description, image.id);
         setStatus('success');
         onToast('success', 'Downloaded!');
         setTimeout(() => { setStatus('idle'); onClose(); }, 1500);
@@ -28,7 +35,7 @@ export default function PreviewModal({ image, onClose, onToast }) {
       onToast('error', `Import failed: ${err.message}`);
       setTimeout(() => setStatus('idle'), 2500);
     }
-  }, [image, isCEP, cs, status, onToast, onClose]);
+  }, [image, isCEP, cs, status, onToast, onClose, isVideo]);
 
   const handleRemoveBg = useCallback(async () => {
     if (status !== 'idle' && status !== 'error') return;
@@ -58,14 +65,32 @@ export default function PreviewModal({ image, onClose, onToast }) {
 
   if (!image) return null;
 
+  /**
+   * Format seconds to M:SS
+   */
+  function formatDuration(seconds) {
+    if (!seconds) return '';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
   return (
     <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-sm flex flex-col animate-fade-up">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/80 to-transparent shrink-0">
         <div className="flex flex-col">
-          <span className="text-white font-semibold text-[14px]">Image Preview</span>
+          <span className="text-white font-semibold text-[14px]">
+            {isVideo ? 'Video Preview' : 'Image Preview'}
+          </span>
           <span className="text-text-muted text-[11px]">
             by <a href={image.userUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{image.userName}</a>
+            {isVideo && image.duration > 0 && (
+              <span className="ml-2 text-text-muted">
+                · {formatDuration(image.duration)}
+                {image.width > 0 && ` · ${image.width}×${image.height}`}
+              </span>
+            )}
           </span>
         </div>
         <button 
@@ -76,13 +101,24 @@ export default function PreviewModal({ image, onClose, onToast }) {
         </button>
       </div>
 
-      {/* Image Container */}
+      {/* Content Container */}
       <div className="flex-1 min-h-0 relative flex items-center justify-center p-4">
-        <img 
-          src={image.fullUrl} 
-          alt={image.description} 
-          className="max-w-full max-h-full object-contain rounded drop-shadow-2xl" 
-        />
+        {isVideo ? (
+          <video
+            src={image.videoUrl || image.fullUrl}
+            controls
+            autoPlay
+            loop
+            className="max-w-full max-h-full rounded drop-shadow-2xl bg-black"
+            style={{ outline: 'none' }}
+          />
+        ) : (
+          <img 
+            src={image.fullUrl} 
+            alt={image.description} 
+            className="max-w-full max-h-full object-contain rounded drop-shadow-2xl" 
+          />
+        )}
         
         {/* Loading / Status Overlays */}
         {status === 'importing' && (
@@ -110,17 +146,19 @@ export default function PreviewModal({ image, onClose, onToast }) {
         <button 
           onClick={handleImport}
           disabled={status !== 'idle' && status !== 'error'}
-          className="flex-1 py-2.5 px-4 bg-bg-tertiary hover:bg-bg-hover text-white text-[13px] font-semibold rounded-md border border-border-subtle transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className={`flex-1 py-2.5 px-4 ${isVideo ? 'bg-accent-gradient shadow-lg' : 'bg-bg-tertiary hover:bg-bg-hover'} text-white text-[13px] font-semibold rounded-md border ${isVideo ? 'border-none' : 'border-border-subtle'} transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
         >
-          ⬇️ Standard Import
+          {isVideo ? '🎬 Import Video' : '⬇️ Standard Import'}
         </button>
-        <button 
-          onClick={handleRemoveBg}
-          disabled={status !== 'idle' && status !== 'error'}
-          className="flex-1 py-2.5 px-4 bg-accent-gradient hover:opacity-90 text-white text-[13px] font-semibold rounded-md border-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
-        >
-          ✂️ Remove BG & Import
-        </button>
+        {!isVideo && (
+          <button 
+            onClick={handleRemoveBg}
+            disabled={status !== 'idle' && status !== 'error'}
+            className="flex-1 py-2.5 px-4 bg-accent-gradient hover:opacity-90 text-white text-[13px] font-semibold rounded-md border-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+          >
+            ✂️ Remove BG & Import
+          </button>
+        )}
       </div>
     </div>
   );

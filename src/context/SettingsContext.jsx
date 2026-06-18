@@ -3,12 +3,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const SettingsContext = createContext(null);
 
 export function SettingsProvider({ children }) {
-  // Initialize with the user's provided key if not set, otherwise load from localStorage
+  // Initialize from localStorage, fallback to env var
   const [removeBgApiKey, setRemoveBgApiKey] = useState(() => {
     const saved = localStorage.getItem('removeBgApiKey');
     if (saved !== null) return saved;
-    // Default to the key provided by the user for convenience
-    return 'XFi6uo7w8S68kbS1Q1d6byyw'; 
+    return import.meta.env.VITE_REMOVEBG_API_KEY || ''; 
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
