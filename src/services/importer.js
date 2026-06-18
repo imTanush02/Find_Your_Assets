@@ -125,6 +125,48 @@ export async function removeBgAndImport(imageUrl, description, imageId, apiKey) 
 }
 
 /**
+ * Remove background from a local file via remove.bg API and import into AE.
+ */
+export async function removeBgLocalAndImport(localFilePath, apiKey) {
+  const env = detectEnvironment();
+  if (!env.isCEP) throw new Error('Import requires After Effects');
+  if (!env.fs.existsSync(localFilePath)) throw new Error('File not found: ' + localFilePath);
+
+  // Read local file and convert to base64
+  const fileBuffer = env.fs.readFileSync(localFilePath);
+  const base64Data = fileBuffer.toString('base64');
+
+  const saveDir = await getSaveDirectory();
+  const originalFileName = env.path.basename(localFilePath, env.path.extname(localFilePath));
+  const safeName = originalFileName.replace(/[^a-z0-9]/gi, '_').substring(0, 60);
+  const baseName = `${safeName}_nobg_${Date.now()}`;
+  const finalPath = env.path.join(saveDir, baseName + '.png');
+
+  const payload = JSON.stringify({
+    image_file_b64: base64Data,
+    size: 'auto'
+  });
+
+  const { buffer } = await httpPostJSONForBinary(
+    'https://api.remove.bg/v1.0/removebg',
+    { 'X-Api-Key': apiKey },
+    payload
+  );
+  
+  env.fs.writeFileSync(finalPath, buffer);
+
+  // Import into AE
+  const escapedPath = finalPath.replace(/\\/g, '/');
+  const result = await evalScript(`importFileToProject("${escapedPath}")`);
+
+  if (result && result.indexOf('ERROR') === 0) {
+    throw new Error(result);
+  }
+
+  return { path: finalPath, fileName: baseName + '.png' };
+}
+
+/**
  * Load an image URL as a base64 data URI (for Pixabay hotlink workaround).
  */
 export async function loadImageAsDataUri(url) {

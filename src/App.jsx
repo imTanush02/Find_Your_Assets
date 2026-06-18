@@ -12,6 +12,8 @@ import StatusBar from './components/StatusBar';
 import DebugConsole from './components/DebugConsole';
 import SettingsModal from './components/SettingsModal';
 import PreviewModal from './components/PreviewModal';
+import LocalRemoveBgModal from './components/LocalRemoveBgModal';
+import { useSettings } from './context/SettingsContext';
 
 function AppContent() {
   const {
@@ -69,7 +71,10 @@ function AppContent() {
   })();
 
   return (
-    <div id="app" className="flex flex-col h-full overflow-hidden min-h-0 bg-bg-primary text-text-primary">
+    <div 
+      id="app" 
+      className="flex flex-col h-full overflow-hidden min-h-0 bg-bg-primary text-text-primary"
+    >
       <Header />
 
       <div className="px-3.5 pt-2.5 pb-1.5 shrink-0 bg-bg-primary">
@@ -107,6 +112,7 @@ function AppContent() {
       <DebugConsole />
       <StatusBar total={total} loading={loading} error={error} />
       <SettingsModal />
+      <LocalRemoveBgModal addToast={addToast} />
       
       {previewImage && (
         <PreviewModal 

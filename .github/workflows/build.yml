@@ -1,0 +1,46 @@
+name: Build and Package Extension
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Extension
+        run: npm run build
+
+      - name: Prepare ZIP Contents
+        run: |
+          mkdir -p Find_Your_Assets
+          cp -r CSXS Find_Your_Assets/
+          cp -r host Find_Your_Assets/
+          cp -r dist Find_Your_Assets/
+          cp INSTALL.txt Find_Your_Assets/
+          cp .debug Find_Your_Assets/ || true
+
+      - name: Create ZIP
+        run: |
+          cd Find_Your_Assets
+          zip -r ../Find_Your_Assets_Latest.zip ./* .debug || zip -r ../Find_Your_Assets_Latest.zip ./*
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Find_Your_Assets_Latest
+          path: Find_Your_Assets_Latest.zip

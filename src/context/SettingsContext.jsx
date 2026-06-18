@@ -11,6 +11,7 @@ export function SettingsProvider({ children }) {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLocalRemoveBgOpen, setIsLocalRemoveBgOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('removeBgApiKey', removeBgApiKey);
@@ -23,6 +24,8 @@ export function SettingsProvider({ children }) {
         setRemoveBgApiKey,
         isSettingsOpen,
         setIsSettingsOpen,
+        isLocalRemoveBgOpen,
+        setIsLocalRemoveBgOpen,
       }}
     >
       {children}
