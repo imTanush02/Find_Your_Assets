@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Code
@@ -39,8 +41,12 @@ jobs:
           cd Find_Your_Assets
           zip -r ../Find_Your_Assets_Latest.zip ./* .debug || zip -r ../Find_Your_Assets_Latest.zip ./*
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Update Latest Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: Find_Your_Assets_Latest
-          path: Find_Your_Assets_Latest.zip
+          tag_name: latest
+          name: Latest Version
+          body: "Automatically built from main branch. Download the ZIP below."
+          files: Find_Your_Assets_Latest.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
