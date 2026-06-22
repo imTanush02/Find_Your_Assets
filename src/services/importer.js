@@ -229,3 +229,104 @@ export function browserDownload(imageUrl, description, imageId) {
       URL.revokeObjectURL(url);
     });
 }
+
+/**
+ * Remove background from a local video using a Python worker and import into AE.
+ */
+export async function removeVideoBgLocalAndImport(localFilePath, onProgress) {
+  const env = detectEnvironment();
+  if (!env.isCEP) throw new Error('Requires After Effects');
+  if (!env.fs.existsSync(localFilePath)) throw new Error('File not found: ' + localFilePath);
+  if (!env.child_process) throw new Error('child_process not available. Please ensure nodejs is enabled.');
+
+  let extensionPath = env.cs.getSystemPath('extension');
+  if (extensionPath.startsWith('file:///')) {
+    extensionPath = extensionPath.substring(8);
+  } else if (extensionPath.startsWith('file://')) {
+    extensionPath = extensionPath.substring(7);
+  }
+  extensionPath = decodeURI(extensionPath);
+
+  const pythonScript = env.path.join(extensionPath, 'src', 'python', 'remove_video_bg.py');
+
+  if (!env.fs.existsSync(pythonScript)) {
+    throw new Error(`Python script not found: ${pythonScript}`);
+  }
+
+  const saveDir = await getSaveDirectory();
+  const originalFileName = env.path.basename(localFilePath, env.path.extname(localFilePath));
+  const safeName = originalFileName.replace(/[^a-z0-9]/gi, '_').substring(0, 60);
+  const baseName = `${safeName}_nobg_${Date.now()}`;
+  const finalPath = env.path.join(saveDir, baseName + '.mov');
+
+  return new Promise((resolve, reject) => {
+    // Build a clean environment: strip GITHUB_TOKEN to avoid torch.hub 401 errors
+    const spawnEnv = Object.assign({}, process.env || {});
+    delete spawnEnv.GITHUB_TOKEN;
+
+    const pythonProcess = env.child_process.spawn('python', [pythonScript, localFilePath, finalPath], {
+      env: spawnEnv
+    });
+
+    const stderrChunks = [];
+    const stdoutChunks = [];
+
+    pythonProcess.stdout.on('data', (data) => {
+      const msg = data.toString();
+      stdoutChunks.push(msg);
+      console.log('Python output:', msg);
+      if (onProgress && msg.includes('Progress:')) {
+        const match = msg.match(/Progress:\s*([\d.]+)%/);
+        if (match && match[1]) {
+          onProgress(parseFloat(match[1]));
+        }
+      }
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      const msg = data.toString();
+      stderrChunks.push(msg);
+      console.error('Python stderr:', msg);
+    });
+
+    pythonProcess.on('close', async (code) => {
+      if (code !== 0) {
+        const allStderr = stderrChunks.join('').trim();
+        const allStdout = stdoutChunks.join('').trim();
+        // The Python script prints real errors to stdout ("Error loading model:", "Error opening video:", etc.)
+        // stderr typically has torch/Python warnings (e.g. "Using cache found in ...")
+        const stdoutLines = allStdout.split('\n').filter(l => l.trim());
+        const stderrLines = allStderr.split('\n').filter(l => l.trim());
+        // 1) Prefer stdout lines that look like errors from our script
+        const stdoutError = stdoutLines.find(l => /^(Error|Failed)/i.test(l.trim()));
+        // 2) Fall back to Python traceback last line in stderr (e.g. "ModuleNotFoundError: ...")
+        const tracebackError = stderrLines.filter(l => !l.startsWith('  ') && !l.startsWith('Traceback') && !/^(Using cache|Downloading|WARNING|UserWarning)/i.test(l.trim())).pop();
+        const detail = stdoutError || tracebackError || stdoutLines.pop() || stderrLines.pop() || `exit code ${code}`;
+        reject(new Error(detail));
+        return;
+      }
+      
+      try {
+        if (!env.fs.existsSync(finalPath)) {
+          throw new Error('Output video was not created.');
+        }
+
+        // Import into AE
+        const escapedPath = finalPath.replace(/\\/g, '/');
+        const result = await evalScript(`importFileToProject("${escapedPath}")`);
+
+        if (result && result.indexOf('ERROR') === 0) {
+          throw new Error(result);
+        }
+
+        resolve({ path: finalPath, fileName: baseName + '.mov' });
+      } catch (err) {
+        reject(err);
+      }
+    });
+    
+    pythonProcess.on('error', (err) => {
+      reject(new Error(`Failed to start python process: ${err.message}`));
+    });
+  });
+}

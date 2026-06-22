@@ -12,6 +12,7 @@ export function SettingsProvider({ children }) {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLocalRemoveBgOpen, setIsLocalRemoveBgOpen] = useState(false);
+  const [isLocalVideoBgOpen, setIsLocalVideoBgOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('removeBgApiKey', removeBgApiKey);
@@ -26,6 +27,8 @@ export function SettingsProvider({ children }) {
         setIsSettingsOpen,
         isLocalRemoveBgOpen,
         setIsLocalRemoveBgOpen,
+        isLocalVideoBgOpen,
+        setIsLocalVideoBgOpen,
       }}
     >
       {children}

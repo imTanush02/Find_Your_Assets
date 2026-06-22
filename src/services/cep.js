@@ -19,6 +19,7 @@ export function detectEnvironment() {
       https: window.cep_node.require('https'),
       http: window.cep_node.require('http'),
       os: window.cep_node.require('os'),
+      child_process: window.cep_node.require('child_process'),
       Buffer: window.cep_node.Buffer,
     };
     isCEP = true;
@@ -31,6 +32,7 @@ export function detectEnvironment() {
         https: require('https'),
         http: require('http'),
         os: require('os'),
+        child_process: require('child_process'),
         Buffer: (typeof Buffer !== 'undefined') ? Buffer : null,
       };
       isCEP = true;
