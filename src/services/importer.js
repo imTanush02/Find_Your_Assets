@@ -4,6 +4,7 @@
 
 import { detectEnvironment, evalScript } from './cep';
 import { httpGetBinary, httpPostJSONForBinary } from './http';
+import { uploadToReplicate, createVideoBgPrediction, pollPredictionUntilDone, downloadToFile } from './replicate';
 
 const EXT_MAP = {
   'image/jpeg': '.jpg',
@@ -231,102 +232,147 @@ export function browserDownload(imageUrl, description, imageId) {
 }
 
 /**
- * Remove background from a local video using a Python worker and import into AE.
+ * Find FFmpeg binary — checks PATH first, then common install locations.
  */
-export async function removeVideoBgLocalAndImport(localFilePath, onProgress) {
+function findFFmpeg(env) {
+  const isWindows = (typeof process !== 'undefined') && process.platform === 'win32';
+
+  // 1) Check PATH
+  try {
+    const cmd = isWindows ? 'where' : 'which';
+    const result = env.child_process.spawnSync(cmd, ['ffmpeg'], { timeout: 5000 });
+    if (result.status === 0 && result.stdout) {
+      const firstLine = result.stdout.toString().trim().split(/\r?\n/)[0].trim();
+      if (firstLine) return firstLine;
+    }
+  } catch { /* not in PATH */ }
+
+  // 2) Probe common Windows install locations
+  if (isWindows) {
+    const candidates = [
+      env.path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'ffmpeg.exe'),
+      'C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe',
+      env.path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'ffmpeg.exe'),
+      'C:\\ffmpeg\\bin\\ffmpeg.exe',
+      env.path.join(process.env.ProgramFiles || 'C:\\Program Files', 'FFmpeg', 'bin', 'ffmpeg.exe'),
+    ];
+    for (const c of candidates) {
+      if (c && env.fs.existsSync(c)) return c;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Convert a green-screen video to ProRes 4444 with alpha channel via FFmpeg.
+ */
+function runFFmpegConversion(env, ffmpegBin, inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-y',
+      '-i', inputPath,
+      '-vf', 'colorkey=0x00FF00:0.3:0.2',
+      '-c:v', 'prores_ks',
+      '-profile:v', '4444',
+      '-pix_fmt', 'yuva444p10le',
+      '-vendor', 'apl0',
+      outputPath,
+    ];
+
+    const proc = env.child_process.spawn(ffmpegBin, args);
+    const stderrChunks = [];
+
+    proc.stderr.on('data', (data) => { stderrChunks.push(data.toString()); });
+
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        const errMsg = stderrChunks.join('').slice(-300);
+        reject(new Error(`FFmpeg exited with code ${code}: ${errMsg}`));
+      } else {
+        resolve();
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to run FFmpeg: ${err.message}`));
+    });
+  });
+}
+
+/**
+ * Remove background from a local video using Replicate's cloud API and import into AE.
+ *
+ * Flow:
+ *   1. Upload video to Replicate
+ *   2. Start RobustVideoMatting prediction (cloud GPU)
+ *   3. Poll until processing completes
+ *   4. Download the green-screen result
+ *   5. Convert to ProRes 4444 with alpha (via FFmpeg, if available)
+ *   6. Import into After Effects
+ */
+export async function removeVideoBgLocalAndImport(localFilePath, apiKey, onProgress) {
   const env = detectEnvironment();
   if (!env.isCEP) throw new Error('Requires After Effects');
   if (!env.fs.existsSync(localFilePath)) throw new Error('File not found: ' + localFilePath);
-  if (!env.child_process) throw new Error('child_process not available. Please ensure nodejs is enabled.');
-
-  let extensionPath = env.cs.getSystemPath('extension');
-  if (extensionPath.startsWith('file:///')) {
-    extensionPath = extensionPath.substring(8);
-  } else if (extensionPath.startsWith('file://')) {
-    extensionPath = extensionPath.substring(7);
-  }
-  extensionPath = decodeURI(extensionPath);
-
-  const pythonScript = env.path.join(extensionPath, 'src', 'python', 'remove_video_bg.py');
-
-  if (!env.fs.existsSync(pythonScript)) {
-    throw new Error(`Python script not found: ${pythonScript}`);
-  }
+  if (!apiKey) throw new Error('Replicate API token is required. Set it in Settings.');
 
   const saveDir = await getSaveDirectory();
   const originalFileName = env.path.basename(localFilePath, env.path.extname(localFilePath));
   const safeName = originalFileName.replace(/[^a-z0-9]/gi, '_').substring(0, 60);
-  const baseName = `${safeName}_nobg_${Date.now()}`;
-  const finalPath = env.path.join(saveDir, baseName + '.mov');
+  const timestamp = Date.now();
+  const greenScreenPath = env.path.join(saveDir, `${safeName}_gs_${timestamp}.mp4`);
+  const finalPath = env.path.join(saveDir, `${safeName}_nobg_${timestamp}.mov`);
 
-  return new Promise((resolve, reject) => {
-    // Build a clean environment: strip GITHUB_TOKEN to avoid torch.hub 401 errors
-    const spawnEnv = Object.assign({}, process.env || {});
-    delete spawnEnv.GITHUB_TOKEN;
+  // ── Phase 1: Upload to Replicate (0 → 15%) ──
+  if (onProgress) onProgress(1);
+  const fileUrl = await uploadToReplicate(localFilePath, apiKey);
+  if (onProgress) onProgress(15);
 
-    const pythonProcess = env.child_process.spawn('python', [pythonScript, localFilePath, finalPath], {
-      env: spawnEnv
-    });
+  // ── Phase 2: Start cloud prediction (15 → 20%) ──
+  const prediction = await createVideoBgPrediction(fileUrl, apiKey);
+  if (onProgress) onProgress(20);
 
-    const stderrChunks = [];
-    const stdoutChunks = [];
+  // ── Phase 3: Poll until done (20 → 78%) ──
+  const outputUrl = await pollPredictionUntilDone(prediction.id, apiKey, onProgress);
+  if (onProgress) onProgress(78);
 
-    pythonProcess.stdout.on('data', (data) => {
-      const msg = data.toString();
-      stdoutChunks.push(msg);
-      console.log('Python output:', msg);
-      if (onProgress && msg.includes('Progress:')) {
-        const match = msg.match(/Progress:\s*([\d.]+)%/);
-        if (match && match[1]) {
-          onProgress(parseFloat(match[1]));
-        }
-      }
-    });
+  // ── Phase 4: Download result (78 → 88%) ──
+  if (!outputUrl) throw new Error('Cloud processing completed but returned no output URL.');
+  await downloadToFile(outputUrl, greenScreenPath);
+  if (onProgress) onProgress(88);
 
-    pythonProcess.stderr.on('data', (data) => {
-      const msg = data.toString();
-      stderrChunks.push(msg);
-      console.error('Python stderr:', msg);
-    });
+  // ── Phase 5: FFmpeg conversion — green-screen → ProRes 4444 alpha (88 → 98%) ──
+  let importFilePath;
+  const ffmpegBin = findFFmpeg(env);
 
-    pythonProcess.on('close', async (code) => {
-      if (code !== 0) {
-        const allStderr = stderrChunks.join('').trim();
-        const allStdout = stdoutChunks.join('').trim();
-        // The Python script prints real errors to stdout ("Error loading model:", "Error opening video:", etc.)
-        // stderr typically has torch/Python warnings (e.g. "Using cache found in ...")
-        const stdoutLines = allStdout.split('\n').filter(l => l.trim());
-        const stderrLines = allStderr.split('\n').filter(l => l.trim());
-        // 1) Prefer stdout lines that look like errors from our script
-        const stdoutError = stdoutLines.find(l => /^(Error|Failed)/i.test(l.trim()));
-        // 2) Fall back to Python traceback last line in stderr (e.g. "ModuleNotFoundError: ...")
-        const tracebackError = stderrLines.filter(l => !l.startsWith('  ') && !l.startsWith('Traceback') && !/^(Using cache|Downloading|WARNING|UserWarning)/i.test(l.trim())).pop();
-        const detail = stdoutError || tracebackError || stdoutLines.pop() || stderrLines.pop() || `exit code ${code}`;
-        reject(new Error(detail));
-        return;
-      }
-      
-      try {
-        if (!env.fs.existsSync(finalPath)) {
-          throw new Error('Output video was not created.');
-        }
+  if (ffmpegBin) {
+    try {
+      await runFFmpegConversion(env, ffmpegBin, greenScreenPath, finalPath);
+      importFilePath = finalPath;
+      // Clean up temp green-screen file
+      try { env.fs.unlinkSync(greenScreenPath); } catch { /* ignore */ }
+    } catch (ffmpegErr) {
+      // FFmpeg conversion failed — fall back to importing the green-screen video directly
+      console.warn('FFmpeg conversion failed, importing green-screen directly:', ffmpegErr.message);
+      importFilePath = greenScreenPath;
+    }
+  } else {
+    // No FFmpeg available — import the green-screen video as-is
+    importFilePath = greenScreenPath;
+  }
+  if (onProgress) onProgress(98);
 
-        // Import into AE
-        const escapedPath = finalPath.replace(/\\/g, '/');
-        const result = await evalScript(`importFileToProject("${escapedPath}")`);
+  // ── Phase 6: Import into AE (98 → 100%) ──
+  const escapedPath = importFilePath.replace(/\\/g, '/');
+  const result = await evalScript(`importFileToProject("${escapedPath}")`);
 
-        if (result && result.indexOf('ERROR') === 0) {
-          throw new Error(result);
-        }
+  if (result && result.indexOf('ERROR') === 0) {
+    throw new Error(result);
+  }
 
-        resolve({ path: finalPath, fileName: baseName + '.mov' });
-      } catch (err) {
-        reject(err);
-      }
-    });
-    
-    pythonProcess.on('error', (err) => {
-      reject(new Error(`Failed to start python process: ${err.message}`));
-    });
-  });
+  if (onProgress) onProgress(100);
+  const importFileName = env.path.basename(importFilePath);
+  return { path: importFilePath, fileName: importFileName };
 }
+

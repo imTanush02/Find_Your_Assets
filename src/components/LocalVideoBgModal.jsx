@@ -4,19 +4,26 @@ import { removeVideoBgLocalAndImport } from '../services/importer';
 import { useToast } from '../hooks/useToast';
 
 export default function LocalVideoBgModal({ addToast }) {
-  const { isLocalVideoBgOpen, setIsLocalVideoBgOpen } = useSettings();
+  const { isLocalVideoBgOpen, setIsLocalVideoBgOpen, replicateApiKey, setIsSettingsOpen } = useSettings();
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef(null);
 
   const handleProcessFile = async (filePath) => {
+    if (!replicateApiKey) {
+      addToast('error', 'Please set your Replicate API token in Settings first.');
+      setIsLocalVideoBgOpen(false);
+      setIsSettingsOpen(true);
+      return;
+    }
+
     setIsProcessing(true);
     setProgress(0);
-    addToast('info', 'Starting video processing... this may take a while.');
+    addToast('info', 'Uploading video for cloud processing...');
     
     try {
-      const result = await removeVideoBgLocalAndImport(filePath, (val) => {
+      const result = await removeVideoBgLocalAndImport(filePath, replicateApiKey, (val) => {
         setProgress(val);
       });
       addToast('success', `Video BG Removed: ${result.fileName}`);
@@ -63,7 +70,7 @@ export default function LocalVideoBgModal({ addToast }) {
     } else {
       addToast('error', 'Only local files are supported.');
     }
-  }, [addToast, isProcessing]);
+  }, [addToast, isProcessing, replicateApiKey]);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -74,6 +81,16 @@ export default function LocalVideoBgModal({ addToast }) {
     e.target.value = '';
   };
 
+  /** Return a phase-appropriate status message based on progress. */
+  function getStatusMessage(pct) {
+    if (pct < 15) return 'Uploading to cloud…';
+    if (pct < 20) return 'Starting AI processing…';
+    if (pct < 78) return 'AI removing background…';
+    if (pct < 88) return 'Downloading result…';
+    if (pct < 98) return 'Converting for After Effects…';
+    return 'Importing into project…';
+  }
+
   if (!isLocalVideoBgOpen) return null;
 
   return (
@@ -83,7 +100,7 @@ export default function LocalVideoBgModal({ addToast }) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle bg-bg-tertiary">
           <h2 className="text-text-primary text-[14px] font-semibold flex items-center gap-2">
-            <span>🎬</span> Local Video BG
+            <span>🎬</span> Cloud Video BG
           </h2>
           {!isProcessing && (
             <button 
@@ -100,7 +117,7 @@ export default function LocalVideoBgModal({ addToast }) {
           {isProcessing ? (
             <div className="flex flex-col items-center justify-center p-8 text-center">
               <div className="w-12 h-12 border-4 border-border-subtle border-t-accent rounded-full animate-spin mb-4"></div>
-              <p className="text-[13px] font-medium text-text-primary mb-2">Processing Video...</p>
+              <p className="text-[13px] font-medium text-text-primary mb-2">{getStatusMessage(progress)}</p>
               <div className="w-full bg-bg-tertiary h-2 rounded-full overflow-hidden">
                 <div 
                   className="bg-accent h-full transition-all duration-300 ease-out" 
@@ -108,7 +125,7 @@ export default function LocalVideoBgModal({ addToast }) {
                 />
               </div>
               <p className="text-[11px] text-text-muted mt-2">{progress.toFixed(1)}%</p>
-              <p className="text-[10px] text-text-muted mt-1 italic">This requires Python, PyTorch, and FFmpeg.</p>
+              <p className="text-[10px] text-text-muted mt-1 italic">Cloud-powered AI · no local dependencies needed.</p>
             </div>
           ) : (
             <div 
@@ -121,7 +138,7 @@ export default function LocalVideoBgModal({ addToast }) {
             >
               <div className="text-4xl mb-3 opacity-80">🎥</div>
               <p className="text-[13px] font-medium text-text-primary mb-1">Click or drag video here</p>
-              <p className="text-[11px] text-text-muted">MP4 or MOV. Processed locally via RVM.</p>
+              <p className="text-[11px] text-text-muted">MP4 or MOV. Processed in the cloud via AI.</p>
             </div>
           )}
 
@@ -138,3 +155,4 @@ export default function LocalVideoBgModal({ addToast }) {
     </div>
   );
 }
+
