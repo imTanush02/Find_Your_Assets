@@ -13,6 +13,7 @@ import DebugConsole from './components/DebugConsole';
 import SettingsModal from './components/SettingsModal';
 import PreviewModal from './components/PreviewModal';
 import LocalRemoveBgModal from './components/LocalRemoveBgModal';
+import PinterestModal from './components/PinterestModal';
 import { useSettings } from './context/SettingsContext';
 
 function AppContent() {
@@ -113,6 +114,7 @@ function AppContent() {
       <StatusBar total={total} loading={loading} error={error} />
       <SettingsModal />
       <LocalRemoveBgModal addToast={addToast} />
+      <PinterestModal addToast={addToast} />
       
       {previewImage && (
         <PreviewModal 

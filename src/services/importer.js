@@ -229,3 +229,36 @@ export function browserDownload(imageUrl, description, imageId) {
       URL.revokeObjectURL(url);
     });
 }
+
+/**
+ * Download a Pinterest video and import it into AE project.
+ * @param {string} videoUrl - Direct MP4 URL from Pinterest scraper
+ * @param {string} title - Pin title for the filename
+ * @param {string} quality - Quality label (e.g. "720p") for the filename
+ */
+export async function downloadPinterestVideoAndImport(videoUrl, title, quality) {
+  const env = detectEnvironment();
+  if (!env.isCEP) throw new Error('Import requires After Effects');
+
+  const saveDir = await getSaveDirectory();
+  const safeName = (title || 'pinterest_video')
+    .replace(/[^a-z0-9]/gi, '_')
+    .substring(0, 50);
+  const baseName = `${safeName}_${quality || 'video'}_${Date.now()}`;
+
+  // Download the video file
+  const { buffer } = await httpGetBinary(videoUrl);
+
+  const finalPath = env.path.join(saveDir, baseName + '.mp4');
+  env.fs.writeFileSync(finalPath, buffer);
+
+  // Import into AE
+  const escapedPath = finalPath.replace(/\\/g, '/');
+  const result = await evalScript(`importFileToProject("${escapedPath}")`);
+
+  if (result && result.indexOf('ERROR') === 0) {
+    throw new Error(result);
+  }
+
+  return { path: finalPath, fileName: baseName + '.mp4' };
+}
