@@ -2,7 +2,7 @@ import React from 'react';
 import { useSettings } from '../context/SettingsContext';
 
 export default function SettingsModal() {
-  const { removeBgApiKey, setRemoveBgApiKey, replicateApiKey, setReplicateApiKey, isSettingsOpen, setIsSettingsOpen } = useSettings();
+  const { removeBgApiKey, setRemoveBgApiKey, isSettingsOpen, setIsSettingsOpen } = useSettings();
 
   if (!isSettingsOpen) return null;
 
@@ -29,26 +29,6 @@ export default function SettingsModal() {
             <a href="https://remove.bg/api" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
               remove.bg/api
             </a>
-          </p>
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-text-muted text-[11px] mb-1.5 font-medium">
-            Replicate API Token
-          </label>
-          <input
-            type="password"
-            className="w-full px-2.5 py-1.5 bg-bg-primary border border-border-subtle rounded text-text-primary text-[12px] focus:border-accent focus:outline-none transition-colors"
-            placeholder="Paste API token here..."
-            value={replicateApiKey}
-            onChange={(e) => setReplicateApiKey(e.target.value)}
-          />
-          <p className="text-[10px] text-text-muted mt-1.5 leading-relaxed">
-            Required for cloud video BG removal. Get a free token at{' '}
-            <a href="https://replicate.com/account/api-tokens" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-              replicate.com
-            </a>
-            {' '}($5 free credits)
           </p>
         </div>
 

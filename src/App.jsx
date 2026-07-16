@@ -13,7 +13,6 @@ import DebugConsole from './components/DebugConsole';
 import SettingsModal from './components/SettingsModal';
 import PreviewModal from './components/PreviewModal';
 import LocalRemoveBgModal from './components/LocalRemoveBgModal';
-import LocalVideoBgModal from './components/LocalVideoBgModal';
 import { useSettings } from './context/SettingsContext';
 
 function AppContent() {
@@ -114,7 +113,6 @@ function AppContent() {
       <StatusBar total={total} loading={loading} error={error} />
       <SettingsModal />
       <LocalRemoveBgModal addToast={addToast} />
-      <LocalVideoBgModal addToast={addToast} />
       
       {previewImage && (
         <PreviewModal 

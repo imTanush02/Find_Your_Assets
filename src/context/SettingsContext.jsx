@@ -10,37 +10,22 @@ export function SettingsProvider({ children }) {
     return import.meta.env.VITE_REMOVEBG_API_KEY || ''; 
   });
 
-  const [replicateApiKey, setReplicateApiKey] = useState(() => {
-    const saved = localStorage.getItem('replicateApiKey');
-    if (saved !== null) return saved;
-    return import.meta.env.VITE_REPLICATE_API_KEY || '';
-  });
-
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLocalRemoveBgOpen, setIsLocalRemoveBgOpen] = useState(false);
-  const [isLocalVideoBgOpen, setIsLocalVideoBgOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('removeBgApiKey', removeBgApiKey);
   }, [removeBgApiKey]);
-
-  useEffect(() => {
-    localStorage.setItem('replicateApiKey', replicateApiKey);
-  }, [replicateApiKey]);
 
   return (
     <SettingsContext.Provider
       value={{
         removeBgApiKey,
         setRemoveBgApiKey,
-        replicateApiKey,
-        setReplicateApiKey,
         isSettingsOpen,
         setIsSettingsOpen,
         isLocalRemoveBgOpen,
         setIsLocalRemoveBgOpen,
-        isLocalVideoBgOpen,
-        setIsLocalVideoBgOpen,
       }}
     >
       {children}
