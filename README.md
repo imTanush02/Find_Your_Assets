@@ -1,46 +1,68 @@
-# Find Your Assets 🔍 — After Effects Extension
+# Find Your Assets 🔍
 
-A modern, fast, and beautiful Adobe After Effects extension built with React, Vite, and TailwindCSS. Search millions of high-quality images directly from **Unsplash**, **Pixabay**, and **Pexels**, and import them seamlessly into your After Effects projects with a single click.
+**A sleek After Effects extension for searching, previewing, and importing millions of stock images & videos — plus Pinterest video downloading and AI background removal — all without leaving AE.**
 
-It also features **1-Click AI Background Removal** powered by Remove.bg! ✂️
+Built with React, Vite, and TailwindCSS. Runs as a native CEP panel inside Adobe After Effects.
 
 ---
 
-## ⚡ Quick Setup (For Friends!)
+## ✨ Features
 
-> Just follow these steps and you'll be up and running in 5 minutes.
+| Feature | Description |
+|---------|-------------|
+| 🔍 **Multi-Source Search** | Search **Pexels**, **Pixabay**, and **Unsplash** for images & videos in one unified interface |
+| 📥 **1-Click Import** | Preview any asset, then import it directly into your AE project panel |
+| 🎬 **Video Search** | Browse and import stock videos from Pexels and Pixabay |
+| 📌 **Pinterest Video Downloader** | Paste any Pinterest pin URL → fetch video metadata → choose quality → import into AE |
+| ✂️ **AI Background Removal** | Remove backgrounds from images using Remove.bg — works on search results and local files |
+| 🖼️ **Image Preview** | Full-size preview modal with download, import, and remove-BG actions |
+| 🎨 **Dark UI** | Designed to blend seamlessly with After Effects' native interface |
+| ♾️ **Infinite Scroll** | Paginated results with "Load More" for endless browsing |
+
+---
+
+## ⚡ Quick Setup
+
+> Takes about 5 minutes. All API keys are free.
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v16 or above) — download and install if you don't have it.
-- [Git](https://git-scm.com/) — to clone the repo.
-- Adobe After Effects (2020 or later).
 
-### Step 1: Enable Developer Mode
+- [Node.js](https://nodejs.org/) v16+
+- [Git](https://git-scm.com/)
+- Adobe After Effects 2020 or later
 
-Since this extension is unsigned, you need to enable Developer Mode first.
+### Step 1 — Enable Developer Mode
 
-**Windows:**
-1. Press `Win + R`, type `regedit`, press Enter.
+This extension is unsigned, so CEP developer mode must be enabled.
+
+<details>
+<summary><b>Windows</b></summary>
+
+1. Press `Win + R`, type `regedit`, press Enter
 2. Navigate to `HKEY_CURRENT_USER\Software\Adobe\CSXS.11`
    - AE 2024+ → `CSXS.11`
    - AE 2023 → `CSXS.10`
    - AE 2022 → `CSXS.9`
-3. Right-click → New → String Value → Name it `PlayerDebugMode`.
-4. Double-click it → Set value to `1`.
+3. Right-click → **New → String Value** → Name it `PlayerDebugMode`
+4. Double-click → Set value to `1`
 
-**macOS:**
-1. Open Terminal.
-2. Run: `defaults write com.adobe.CSXS.11 PlayerDebugMode 1`
-   - Change `.11` based on your AE version.
+</details>
 
-### Step 2: Clone & Install
+<details>
+<summary><b>macOS</b></summary>
 
-Open your terminal/command prompt and run:
+Open Terminal and run:
+```bash
+defaults write com.adobe.CSXS.11 PlayerDebugMode 1
+```
+Change `.11` to match your AE version.
+
+</details>
+
+### Step 2 — Clone & Install
 
 ```bash
-# Clone into the Adobe CEP extensions folder
-
-# Windows:
+# Windows — clone into the CEP extensions folder:
 cd "C:\Program Files (x86)\Common Files\Adobe\CEP\extensions"
 git clone https://github.com/imTanush02/Find_Your_Assets.git
 
@@ -56,74 +78,112 @@ cd Find_Your_Assets
 npm install
 ```
 
-### Step 3: Get Your API Keys (Free!)
+### Step 3 — Get API Keys (Free)
 
-You need API keys for the image search to work. All are **free**:
-
-| Service | Sign Up Link | What You Need |
-|---------|-------------|--------------|
-| **Unsplash** | [unsplash.com/developers](https://unsplash.com/developers) | Create an app → Copy "Access Key" |
-| **Pixabay** | [pixabay.com/api/docs](https://pixabay.com/api/docs/) | Sign up → Copy your API key |
-| **Pexels** | [pexels.com/api](https://www.pexels.com/api/) | Sign up → Copy your API key |
+| Service | Sign Up | What You Need |
+|---------|---------|---------------|
+| **Pexels** | [pexels.com/api](https://www.pexels.com/api/) | Sign up → Copy API key |
+| **Pixabay** | [pixabay.com/api/docs](https://pixabay.com/api/docs/) | Sign up → Copy API key |
+| **Unsplash** | [unsplash.com/developers](https://unsplash.com/developers) | Create app → Copy "Access Key" |
 | **Remove.bg** *(optional)* | [remove.bg/api](https://www.remove.bg/api) | Sign up → Generate API key |
 
-### Step 4: Create Your `.env` File
+> **Note:** Pinterest video downloading doesn't require any API key — it scrapes public pin pages directly.
 
-Copy the example file and fill in your keys:
+### Step 4 — Configure `.env`
 
 ```bash
-# In the Find_Your_Assets folder:
-cp .env.example .env
+cp .env.example .env        # macOS/Linux
+copy .env.example .env      # Windows
 ```
 
-Or on **Windows** (Command Prompt):
-```cmd
-copy .env.example .env
-```
-
-Now open `.env` in any text editor and paste your API keys:
+Open `.env` and paste your keys:
 
 ```env
-VITE_UNSPLASH_ACCESS_KEY=paste_your_unsplash_key_here
-VITE_PIXABAY_API_KEY=paste_your_pixabay_key_here
-VITE_PEXELS_API_KEY=paste_your_pexels_key_here
-VITE_REMOVEBG_API_KEY=paste_your_removebg_key_here
+VITE_UNSPLASH_ACCESS_KEY=your_key_here
+VITE_PIXABAY_API_KEY=your_key_here
+VITE_PEXELS_API_KEY=your_key_here
+VITE_REMOVEBG_API_KEY=your_key_here
 ```
 
-### Step 5: Build & Launch
+### Step 5 — Build & Launch
 
 ```bash
 npm run build
 ```
 
-Now open After Effects → **Window → Extensions → Find_Your_Assets** 🎉
+Open After Effects → **Window → Extensions → Find_Your_Assets** 🎉
 
 ---
 
-## ✨ Features
+## 📌 Pinterest Video Downloader
 
-- 🔍 **Multi-Source Search** — Search Unsplash, Pixabay, and Pexels all in one place.
-- 📥 **Direct AE Import** — Click to preview, then import directly into your After Effects project.
-- ✂️ **AI Background Removal** — Remove backgrounds with one click using Remove.bg.
-- 🎨 **Modern Dark UI** — Beautiful dark mode designed for After Effects, with smooth animations.
-- ♾️ **Infinite Scroll** — Keep scrolling to load more results automatically.
+Download videos from Pinterest directly into your After Effects project:
+
+1. Click the **📌 Pinterest** button in the header
+2. Paste a Pinterest video pin URL (e.g. `https://www.pinterest.com/pin/123456789/` or a `pin.it/...` short link)
+3. Click **Fetch** — the extension scrapes the page and extracts video data
+4. Choose your preferred quality (720p, 1080p, etc.)
+5. Click **Import** — the video downloads and imports into your AE project
+
+> Works with public video pins only. No API key or login required.
 
 ---
 
-## 🛠️ Development Setup
+## ✂️ Background Removal
 
-Want to modify the code? Here's how:
+Two ways to remove backgrounds:
 
-1. Follow Steps 1-4 above.
-2. Start the dev server instead of building:
-   ```bash
-   npm run dev
-   ```
-3. Open After Effects. Changes in `src/` will auto-update via Hot Module Replacement!
+- **From search results** — Click any image → Preview → "Remove BG" button
+- **From local files** — Click the ✂️ **Remove BG** button in the header → drag & drop or browse for an image
 
-To create a production build:
+Both methods use [Remove.bg](https://www.remove.bg/) and auto-import the transparent PNG into your AE project.
+
+---
+
+## 🛠️ Development
+
 ```bash
+# Start dev server with hot reload
+npm run dev
+
+# Production build
 npm run build
+```
+
+During development, open AE and the extension will connect to Vite's dev server with Hot Module Replacement.
+
+---
+
+## 📁 Project Structure
+
+```
+Find_Your_Assets/
+├── src/
+│   ├── components/        # React UI components
+│   │   ├── Header.jsx           # Toolbar with Pinterest, Remove BG, Settings buttons
+│   │   ├── SearchBar.jsx        # Search input
+│   │   ├── SourceSelector.jsx   # Pexels / Unsplash / Pixabay tabs
+│   │   ├── ImageGrid.jsx        # Results grid with lazy loading
+│   │   ├── ImageCard.jsx        # Individual result card
+│   │   ├── PreviewModal.jsx     # Full-size preview with actions
+│   │   ├── PinterestModal.jsx   # Pinterest video downloader modal
+│   │   ├── LocalRemoveBgModal.jsx # Drag-and-drop BG removal
+│   │   └── SettingsModal.jsx    # API key configuration
+│   ├── services/          # API & business logic
+│   │   ├── pinterest.js         # Pinterest page scraper
+│   │   ├── pexels.js            # Pexels API client
+│   │   ├── pixabay.js           # Pixabay API client
+│   │   ├── unsplash.js          # Unsplash API client
+│   │   ├── importer.js          # Download + import into AE
+│   │   ├── http.js              # Shared HTTP utilities
+│   │   └── cep.js               # CEP environment detection
+│   ├── context/           # React context providers
+│   ├── hooks/             # Custom hooks (useSearch, useToast)
+│   └── App.jsx            # Root component
+├── host/                  # ExtendScript (AE scripting layer)
+├── CSXS/                  # CEP manifest
+├── dist/                  # Production build output
+└── .env                   # API keys (not committed)
 ```
 
 ---
@@ -132,20 +192,28 @@ npm run build
 
 | Problem | Solution |
 |---------|----------|
-| Extension doesn't show in AE | Make sure `PlayerDebugMode` is set to `1` in Registry. Restart AE. |
-| `ETIMEDOUT` on Remove BG | Your ISP/network might be blocking the API. Try using a VPN. |
-| Images not loading | Check your API keys in `.env`. Make sure they're correct. |
-| `npm install` fails | Make sure Node.js is installed. Run `node -v` to check. |
+| Extension doesn't appear in AE | Verify `PlayerDebugMode` is set to `1` in Registry/defaults. Restart AE. |
+| Images not loading | Double-check API keys in `.env`. Make sure they're valid. |
+| Pinterest says "No video found" | The pin might be an image, not a video. Only video pins have downloadable videos. |
+| Pinterest says "Could not read page data" | Pinterest may have rate-limited the request. Wait a moment and try again. |
+| `ETIMEDOUT` errors | Network/firewall issue. Try a different network or VPN. |
+| `npm install` fails | Ensure Node.js v16+ is installed (`node -v` to check). |
 
 ---
 
-## 📁 Tech Stack
+## 📦 Tech Stack
 
-- **Frontend**: React 18, Vite
-- **Styling**: Tailwind CSS v3
-- **Adobe Integration**: CSInterface.js, Adobe CEP
-- **APIs**: Unsplash, Pixabay, Pexels, Remove.bg
+- **UI** — React 18, Vite 5, Tailwind CSS 3
+- **Adobe Integration** — CSInterface.js, CEP, ExtendScript
+- **APIs** — Pexels, Pixabay, Unsplash, Remove.bg
+- **Pinterest** — Direct HTML scraping via Node.js (no external dependencies)
+
+---
 
 ## 📄 License
 
 MIT License
+
+---
+
+Made by [Tanush](https://github.com/imTanush02)
