@@ -4,6 +4,7 @@
 
 import { detectEnvironment, evalScript } from './cep';
 import { httpGetBinary, httpPostJSONForBinary } from './http';
+import { downloadYtDlpVideo } from './youtube';
 
 const EXT_MAP = {
   'image/jpeg': '.jpg',
@@ -261,4 +262,41 @@ export async function downloadPinterestVideoAndImport(videoUrl, title, quality) 
   }
 
   return { path: finalPath, fileName: baseName + '.mp4' };
+}
+
+/**
+ * Download a YouTube video using yt-dlp and import it into AE project.
+ * @param {string} videoId - YouTube video ID
+ * @param {string} formatId - Quality format ID to download
+ * @param {string} title - Video title for the filename
+ * @param {string} quality - Quality label (e.g. "720p") for the filename
+ * @param {string} ext - The file extension (e.g. "mp4", "webm")
+ */
+export async function downloadYouTubeVideoAndImport(videoId, formatId, title, quality, ext = 'mp4') {
+  const env = detectEnvironment();
+  if (!env.isCEP) throw new Error('Import requires After Effects');
+
+  const saveDir = await getSaveDirectory();
+  const safeName = (title || 'youtube_video')
+    .replace(/[^a-z0-9]/gi, '_')
+    .substring(0, 50);
+  const baseName = `yt_${safeName}_${quality || 'video'}_${Date.now()}`;
+  const finalPath = env.path.join(saveDir, baseName + '.' + ext);
+
+  // Use yt-dlp to download directly to the final path
+  await downloadYtDlpVideo(videoId, formatId, finalPath);
+
+  if (!env.fs.existsSync(finalPath)) {
+    throw new Error('yt-dlp failed to create the video file.');
+  }
+
+  // Import into AE
+  const escapedPath = finalPath.replace(/\\/g, '/');
+  const result = await evalScript(`importFileToProject("${escapedPath}")`);
+
+  if (result && result.indexOf('ERROR') === 0) {
+    throw new Error(result);
+  }
+
+  return { path: finalPath, fileName: baseName + '.' + ext };
 }
