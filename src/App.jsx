@@ -15,6 +15,7 @@ import PreviewModal from './components/PreviewModal';
 import LocalRemoveBgModal from './components/LocalRemoveBgModal';
 import PinterestModal from './components/PinterestModal';
 import YouTubeModal from './components/YouTubeModal';
+import InstagramModal from './components/InstagramModal';
 import { useSettings } from './context/SettingsContext';
 
 function AppContent() {
@@ -117,6 +118,7 @@ function AppContent() {
       <LocalRemoveBgModal addToast={addToast} />
       <PinterestModal addToast={addToast} />
       <YouTubeModal addToast={addToast} />
+      <InstagramModal addToast={addToast} />
       
       {previewImage && (
         <PreviewModal 

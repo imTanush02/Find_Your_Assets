@@ -4,6 +4,8 @@ import {
   fetchYouTubeVideo,
   isYtDlpInstalled,
   downloadYtDlp,
+  updateYtDlp,
+  getYtDlpVersion,
 } from '../services/youtube';
 import { downloadYouTubeVideoAndImport } from '../services/importer';
 
@@ -15,15 +17,34 @@ export default function YouTubeModal({ addToast }) {
   const [fetchError, setFetchError] = useState(null);
   const [importingQuality, setImportingQuality] = useState(null);
   const [ytdlpReady, setYtdlpReady] = useState(false);
+  const [ytdlpVersion, setYtdlpVersion] = useState(null);
+  const [updatingDlp, setUpdatingDlp] = useState(false);
   const [setupProgress, setSetupProgress] = useState(null);
   const inputRef = useRef(null);
 
-  // Check yt-dlp status when modal opens
+  // Check yt-dlp status and version when modal opens
   useEffect(() => {
     if (isYouTubeOpen) {
-      setYtdlpReady(isYtDlpInstalled());
+      const installed = isYtDlpInstalled();
+      setYtdlpReady(installed);
+      if (installed) {
+        getYtDlpVersion().then((ver) => setYtdlpVersion(ver));
+      }
     }
   }, [isYouTubeOpen]);
+
+  const handleUpdateDlp = async () => {
+    setUpdatingDlp(true);
+    try {
+      const res = await updateYtDlp();
+      if (res.version) setYtdlpVersion(res.version);
+      addToast(res.updated ? 'success' : 'info', res.message);
+    } catch (err) {
+      addToast('error', `Update failed: ${err.message}`);
+    } finally {
+      setUpdatingDlp(false);
+    }
+  };
 
   const reset = () => {
     setUrl('');
@@ -120,17 +141,37 @@ export default function YouTubeModal({ addToast }) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle bg-bg-tertiary shrink-0">
-          <h2 className="text-text-primary text-[14px] font-semibold flex items-center gap-2">
-            <span>🎬</span> YouTube Video
-          </h2>
-          {!importingQuality && !setupProgress && (
-            <button
-              onClick={handleClose}
-              className="text-text-muted hover:text-text-primary p-1 leading-none text-lg"
-            >
-              &times;
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <h2 className="text-text-primary text-[14px] font-semibold flex items-center gap-2">
+              <span>🎬</span> YouTube Video
+            </h2>
+            {ytdlpVersion && (
+              <span className="text-[9px] font-mono text-text-muted bg-bg-primary px-1.5 py-0.5 rounded border border-border-subtle/50">
+                v{ytdlpVersion}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {ytdlpReady && !setupProgress && (
+              <button
+                onClick={handleUpdateDlp}
+                disabled={updatingDlp || loading || !!importingQuality}
+                title="Update yt-dlp to latest version"
+                className="px-2 py-1 bg-bg-primary/80 hover:bg-bg-primary border border-border-subtle hover:border-accent/40 text-text-secondary hover:text-text-primary rounded text-[10px] font-medium transition-all flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span className={`text-[10px] ${updatingDlp ? 'animate-spin inline-block' : ''}`}>🔄</span>
+                <span>{updatingDlp ? 'Updating…' : 'Update DLP'}</span>
+              </button>
+            )}
+            {!importingQuality && !setupProgress && (
+              <button
+                onClick={handleClose}
+                className="text-text-muted hover:text-text-primary p-1 leading-none text-lg"
+              >
+                &times;
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Body */}
@@ -280,7 +321,19 @@ export default function YouTubeModal({ addToast }) {
               {/* Error Details */}
               {fetchError && !loading && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded p-3">
-                  <p className="text-[11px] text-red-400 font-medium mb-1">⚠ Failed to extract video</p>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[11px] text-red-400 font-medium">⚠ Failed to extract video</p>
+                    {ytdlpReady && (
+                      <button
+                        onClick={handleUpdateDlp}
+                        disabled={updatingDlp}
+                        className="text-[10px] text-accent hover:underline flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <span className={updatingDlp ? 'animate-spin inline-block' : ''}>🔄</span>
+                        <span>{updatingDlp ? 'Updating…' : 'Update yt-dlp'}</span>
+                      </button>
+                    )}
+                  </div>
                   <pre className="text-[9px] text-text-muted whitespace-pre-wrap break-words leading-relaxed max-h-32 overflow-y-auto">
                     {fetchError}
                   </pre>

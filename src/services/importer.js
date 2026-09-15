@@ -5,6 +5,7 @@
 import { detectEnvironment, evalScript } from './cep';
 import { httpGetBinary, httpPostJSONForBinary } from './http';
 import { downloadYtDlpVideo } from './youtube';
+import { downloadInstagramVideo, downloadInstagramImage } from './instagram';
 
 const EXT_MAP = {
   'image/jpeg': '.jpg',
@@ -299,4 +300,124 @@ export async function downloadYouTubeVideoAndImport(videoId, formatId, title, qu
   }
 
   return { path: finalPath, fileName: baseName + '.' + ext };
+}
+
+/**
+ * Download an Instagram Reel using yt-dlp and import it into AE project.
+ * @param {string} igUrl - Full Instagram URL
+ * @param {string} formatId - Quality format ID to download
+ * @param {string} title - Reel title for the filename
+ * @param {string} quality - Quality label (e.g. "720p") for the filename
+ * @param {string} ext - The file extension (e.g. "mp4", "webm")
+ */
+export async function downloadInstagramReelAndImport(igUrl, formatId, title, quality, ext = 'mp4') {
+  const env = detectEnvironment();
+  if (!env.isCEP) throw new Error('Import requires After Effects');
+
+  const saveDir = await getSaveDirectory();
+  const safeName = (title || 'instagram_reel')
+    .replace(/[^a-z0-9]/gi, '_')
+    .substring(0, 50);
+  const baseName = `ig_${safeName}_${quality || 'video'}_${Date.now()}`;
+  const finalPath = env.path.join(saveDir, baseName + '.' + ext);
+
+  // Use yt-dlp to download directly to the final path
+  await downloadInstagramVideo(igUrl, formatId, finalPath);
+
+  if (!env.fs.existsSync(finalPath)) {
+    throw new Error('yt-dlp failed to create the video file.');
+  }
+
+  // Import into AE
+  const escapedPath = finalPath.replace(/\\/g, '/');
+  const result = await evalScript(`importFileToProject("${escapedPath}")`);
+
+  if (result && result.indexOf('ERROR') === 0) {
+    throw new Error(result);
+  }
+
+  return { path: finalPath, fileName: baseName + '.' + ext };
+}
+
+/**
+ * Download an Instagram image and import it into AE project.
+ * @param {string} imageUrl - Direct image URL
+ * @param {string} title - Post title for the filename
+ * @param {number} index - Image index (for carousels)
+ */
+export async function downloadInstagramImageAndImport(imageUrl, title, index = 0) {
+  const env = detectEnvironment();
+  if (!env.isCEP) throw new Error('Import requires After Effects');
+
+  const saveDir = await getSaveDirectory();
+  const safeName = (title || 'instagram_image')
+    .replace(/[^a-z0-9]/gi, '_')
+    .substring(0, 50);
+  const baseName = `ig_${safeName}_${index}_${Date.now()}`;
+  const finalPath = env.path.join(saveDir, baseName + '.jpg');
+
+  // Download the image
+  await downloadInstagramImage(imageUrl, finalPath);
+
+  if (!env.fs.existsSync(finalPath)) {
+    throw new Error('Failed to download the image.');
+  }
+
+  // Import into AE
+  const escapedPath = finalPath.replace(/\\\\/g, '/');
+  const result = await evalScript(`importFileToProject("${escapedPath}")`);
+
+  if (result && result.indexOf('ERROR') === 0) {
+    throw new Error(result);
+  }
+
+  return { path: finalPath, fileName: baseName + '.jpg' };
+}
+
+/**
+ * Download all items from an Instagram carousel and import them into AE project.
+ * @param {Array} items - Array of carousel items { type, url, qualities, title, index }
+ * @param {string} igUrl - Original Instagram URL (for yt-dlp video downloads)
+ * @param {string} title - Post title for filenames
+ * @param {function} onProgress - Callback (index, total, result) for progress updates
+ */
+export async function downloadInstagramCarouselAndImport(items, igUrl, title, onProgress) {
+  const results = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+
+    try {
+      let result;
+      if (item.type === 'video' && item.qualities && item.qualities.length > 0) {
+        // Use the best quality available
+        const bestQuality = item.qualities[0];
+        result = await downloadInstagramReelAndImport(
+          igUrl,
+          bestQuality.format_id,
+          title || 'Instagram Video',
+          bestQuality.quality,
+          bestQuality.ext,
+        );
+      } else if (item.url) {
+        result = await downloadInstagramImageAndImport(
+          item.url,
+          title || 'Instagram Image',
+          item.index != null ? item.index : i,
+        );
+      }
+
+      if (result) {
+        results.push({ success: true, ...result, index: i });
+      }
+    } catch (err) {
+      results.push({ success: false, error: err.message, index: i });
+    }
+
+    if (onProgress) {
+      onProgress(i, items.length, results[results.length - 1]);
+    }
+  }
+
+  return results;
 }

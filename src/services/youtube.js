@@ -69,6 +69,80 @@ export function isYtDlpInstalled() {
 }
 
 /**
+ * Get current installed yt-dlp version.
+ * @returns {Promise<string|null>}
+ */
+export async function getYtDlpVersion() {
+  const env = detectEnvironment();
+  if (!env.isCEP) return null;
+  const ytdlpPath = getYtDlpPath();
+  if (!env.fs.existsSync(ytdlpPath)) return null;
+
+  return new Promise((resolve) => {
+    env.child_process.execFile(
+      ytdlpPath,
+      ['--version'],
+      { timeout: 10000, windowsHide: true },
+      (err, stdout) => {
+        if (err || !stdout) resolve(null);
+        else resolve(stdout.trim());
+      }
+    );
+  });
+}
+
+/**
+ * Update yt-dlp to latest version.
+ * First tries native yt-dlp -U, falls back to downloading latest binary from GitHub.
+ * @param {function} onProgress - Optional callback for status messages
+ * @returns {Promise<{ updated: boolean, message: string, version: string }>}
+ */
+export async function updateYtDlp(onProgress) {
+  const env = detectEnvironment();
+  if (!env.isCEP) throw new Error('Node.js required');
+
+  const ytdlpPath = getYtDlpPath();
+  if (!env.fs.existsSync(ytdlpPath)) {
+    await downloadYtDlp(onProgress);
+    const ver = await getYtDlpVersion();
+    return { updated: true, message: `Installed yt-dlp v${ver}`, version: ver };
+  }
+
+  if (onProgress) onProgress('Checking for yt-dlp updates...');
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      env.child_process.execFile(
+        ytdlpPath,
+        ['-U'],
+        { timeout: 90000, windowsHide: true },
+        (err, stdout, stderr) => {
+          if (err) {
+            reject(new Error(stderr || err.message));
+            return;
+          }
+          resolve(stdout.trim());
+        }
+      );
+    });
+
+    const newVersion = await getYtDlpVersion();
+    const isUpToDate = result.toLowerCase().includes('up to date');
+    const msg = isUpToDate
+      ? `yt-dlp is up to date (${newVersion || 'latest'})`
+      : `Updated yt-dlp to ${newVersion || 'latest'}!`;
+
+    return { updated: !isUpToDate, message: msg, version: newVersion };
+  } catch (err) {
+    // If self-update failed, fallback to direct GitHub binary download
+    if (onProgress) onProgress('Re-downloading latest yt-dlp from GitHub...');
+    await downloadYtDlp(onProgress);
+    const newVersion = await getYtDlpVersion();
+    return { updated: true, message: `Updated yt-dlp to ${newVersion || 'latest'}!`, version: newVersion };
+  }
+}
+
+/**
  * Download yt-dlp binary from GitHub releases.
  * Returns a promise that resolves when download is complete.
  */
@@ -201,6 +275,22 @@ function runYtDlp(args, timeoutMs = 60000) {
   });
 }
 
+// ── AE-Compatible Codec Check ────────────
+
+/**
+ * Check if a codec is supported by After Effects.
+ * AE supports H.264 (avc1), H.265 (hevc/hev1), ProRes.
+ * AE does NOT support AV1, VP8, VP9.
+ */
+function isAECompatibleCodec(vcodec) {
+  if (!vcodec || vcodec === 'none') return false;
+  const vc = vcodec.toLowerCase();
+  if (vc.startsWith('avc') || vc.startsWith('h264') || vc === 'h.264') return true;
+  if (vc.startsWith('hev') || vc.startsWith('hevc') || vc.startsWith('h265') || vc === 'h.265') return true;
+  if (vc.startsWith('mp4v') || vc.startsWith('mpeg4')) return true;
+  return false;
+}
+
 // ── Public API ───────────────────────────
 
 /**
@@ -231,13 +321,10 @@ export async function fetchYouTubeVideo(url) {
     throw new Error('Failed to parse video info from yt-dlp.');
   }
 
-  // Parse formats — prefer muxed (video+audio) mp4 formats
-  const qualities = [];
-  const seen = new Set();
-
+  // Parse formats — only show AE-compatible codecs (H.264/H.265)
   const allFormats = info.formats || [];
 
-  // 1. Muxed formats (video + audio in one file)
+  // Collect candidates
   const muxedFormats = allFormats.filter(
     (f) =>
       f.url &&
@@ -246,14 +333,32 @@ export async function fetchYouTubeVideo(url) {
       f.height,
   );
 
-  // Sort by height descending
-  muxedFormats.sort((a, b) => (b.height || 0) - (a.height || 0));
+  const videoOnlyFormats = allFormats.filter(
+    (f) =>
+      f.url &&
+      f.vcodec && f.vcodec !== 'none' &&
+      f.height &&
+      (f.ext === 'mp4' || f.ext === 'webm'),
+  );
 
-  for (const fmt of muxedFormats) {
+  // Prefer AE-compatible codecs (H.264/H.265). Never leak VP9/AV1 if compatible formats exist.
+  const compatMuxed = muxedFormats.filter((f) => isAECompatibleCodec(f.vcodec));
+  const compatVideoOnly = videoOnlyFormats.filter((f) => isAECompatibleCodec(f.vcodec));
+
+  const hasCompatible = compatMuxed.length > 0 || compatVideoOnly.length > 0;
+  const useMuxed = compatMuxed.length > 0 ? compatMuxed : (hasCompatible ? [] : muxedFormats);
+  const useVideoOnly = compatVideoOnly.length > 0 ? compatVideoOnly : (hasCompatible ? [] : videoOnlyFormats);
+
+  const qualities = [];
+  const seen = new Set();
+
+  // 1. Muxed formats (video + audio)
+  useMuxed.sort((a, b) => (b.height || 0) - (a.height || 0));
+
+  for (const fmt of useMuxed) {
     if (seen.has(fmt.height)) continue;
     seen.add(fmt.height);
 
-    // Prefer mp4 container
     const ext = fmt.ext || 'mp4';
     const qualityLabel = fmt.format_note || `${fmt.height}p`;
 
@@ -271,18 +376,10 @@ export async function fetchYouTubeVideo(url) {
     });
   }
 
-  // 2. Also add high-quality video-only formats (if we don't already have a muxed version for that resolution)
-  const videoOnlyFormats = allFormats.filter(
-    (f) =>
-      f.url &&
-      f.vcodec && f.vcodec !== 'none' &&
-      f.height &&
-      (f.ext === 'mp4' || f.ext === 'webm'),
-  );
+  // 2. Video-only (resolutions not covered by muxed)
+  useVideoOnly.sort((a, b) => (b.height || 0) - (a.height || 0));
 
-  videoOnlyFormats.sort((a, b) => (b.height || 0) - (a.height || 0));
-
-  for (const fmt of videoOnlyFormats) {
+  for (const fmt of useVideoOnly) {
     if (seen.has(fmt.height)) continue;
     seen.add(fmt.height);
 
@@ -292,12 +389,12 @@ export async function fetchYouTubeVideo(url) {
     qualities.push({
       format_id: fmt.format_id,
       quality: `${fmt.height}p`,
-      label: `${qualityLabel} (${ext}, no audio)`,
+      label: `${qualityLabel} (${ext})`,
       url: fmt.url,
       width: fmt.width || null,
       height: fmt.height || null,
       duration: info.duration || null,
-      hasAudio: false,
+      hasAudio: true,
       ext,
       filesize: fmt.filesize || fmt.filesize_approx || null,
     });
@@ -326,8 +423,7 @@ export async function fetchYouTubeVideo(url) {
 
 /**
  * Download a specific video format using yt-dlp.
- * This is more reliable than using Node's https.get since yt-dlp
- * handles specific headers, large files, and DASH streams automatically.
+ * Automatically merges the selected video format with the best AAC audio stream.
  *
  * @param {string} videoId - YouTube video ID
  * @param {string} formatId - The format ID to download
@@ -336,12 +432,14 @@ export async function fetchYouTubeVideo(url) {
 export async function downloadYtDlpVideo(videoId, formatId, savePath) {
   const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
   
-  // --format <id> downloads that specific format
-  // -o <path> specifies the output file path
+  // Format selector: download formatId and merge audio if video-only
+  const formatSelector = `${formatId}+bestaudio[ext=m4a]/bestaudio/${formatId}/best`;
+
   await runYtDlp([
     '--no-playlist',
     '--no-warnings',
-    '--format', formatId,
+    '--format', formatSelector,
+    '--merge-output-format', 'mp4',
     '-o', savePath,
     ytUrl,
   ], 5 * 60 * 1000); // 5 minute timeout for download

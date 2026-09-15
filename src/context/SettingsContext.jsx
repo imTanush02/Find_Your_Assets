@@ -14,6 +14,7 @@ export function SettingsProvider({ children }) {
   const [isLocalRemoveBgOpen, setIsLocalRemoveBgOpen] = useState(false);
   const [isPinterestOpen, setIsPinterestOpen] = useState(false);
   const [isYouTubeOpen, setIsYouTubeOpen] = useState(false);
+  const [isInstagramOpen, setIsInstagramOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('removeBgApiKey', removeBgApiKey);
@@ -32,6 +33,8 @@ export function SettingsProvider({ children }) {
         setIsPinterestOpen,
         isYouTubeOpen,
         setIsYouTubeOpen,
+        isInstagramOpen,
+        setIsInstagramOpen,
       }}
     >
       {children}
