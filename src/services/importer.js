@@ -364,7 +364,7 @@ export async function downloadInstagramImageAndImport(imageUrl, title, index = 0
   }
 
   // Import into AE
-  const escapedPath = finalPath.replace(/\\\\/g, '/');
+  const escapedPath = finalPath.replace(/\\/g, '/');
   const result = await evalScript(`importFileToProject("${escapedPath}")`);
 
   if (result && result.indexOf('ERROR') === 0) {

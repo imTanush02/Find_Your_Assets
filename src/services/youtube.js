@@ -432,15 +432,30 @@ export async function fetchYouTubeVideo(url) {
 export async function downloadYtDlpVideo(videoId, formatId, savePath) {
   const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
   
-  // Format selector: download formatId and merge audio if video-only
-  const formatSelector = `${formatId}+bestaudio[ext=m4a]/bestaudio/${formatId}/best`;
+  // Format selector: prefer the chosen format with audio, then fall back to
+  // AE-compatible (H.264/avc1) auto-selection.
+  const formatSelector = [
+    `${formatId}+bestaudio[ext=m4a]`,           // chosen format + best AAC audio
+    `${formatId}+bestaudio`,                     // chosen format + any audio
+    `${formatId}`,                               // chosen format alone (may have audio already)
+    `bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]`, // fallback: best H.264 + AAC
+    `bestvideo[vcodec^=avc1]+bestaudio`,          // fallback: best H.264 + any audio
+    `best[vcodec^=avc1]`,                         // fallback: best muxed H.264
+    `bestvideo[vcodec^=avc]+bestaudio`,           // fallback: any AVC variant
+    `best`,                                       // ultimate fallback
+  ].join('/');
 
+  // Some platforms serve VP9/AV1 which After Effects cannot decode (black screen).
+  // Use --recode-video to force ffmpeg to re-encode to H.264 if needed.
+  // yt-dlp skips re-encoding if the video is already in the target format.
   await runYtDlp([
     '--no-playlist',
     '--no-warnings',
     '--format', formatSelector,
+    '--recode-video', 'mp4',
+    '--postprocessor-args', 'ffmpeg:-c:v libx264 -preset fast -crf 18 -c:a aac',
     '--merge-output-format', 'mp4',
     '-o', savePath,
     ytUrl,
-  ], 5 * 60 * 1000); // 5 minute timeout for download
+  ], 10 * 60 * 1000); // 10 minute timeout (re-encoding takes longer)
 }
